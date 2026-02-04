@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TerraLens | Global Monitor</title>
+
+    
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;700;900&display=swap" rel="stylesheet">
+
+
+
+    <style>
+
+        :root { --neon: #00f2ff; }
+
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Montserrat', sans-serif; background: #000; overflow: hidden; }
+
+        
+
+        /* ИНТРО */
+
+        #intro {
+
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+
+            background: radial-gradient(circle, #001a1a 0%, #000 100%);
+
+            z-index: 9999; transition: 1.5s cubic-bezier(0.4, 0, 0.2, 1); text-align: center; color: white;
+
+        }
+
+        #intro.hidden { opacity: 0; visibility: hidden; transform: scale(1.1); }
+
+        h1 { font-size: 4rem; letter-spacing: 15px; font-weight: 900; margin: 0; text-transform: uppercase; }
+
+        h1 span { color: var(--neon); text-shadow: 0 0 20px rgba(0,242,255,0.6); }
+
+        
+
+        .btn-start {
+
+            margin-top: 40px; padding: 20px 60px; border: 1px solid var(--neon); 
+
+            background: none; color: var(--neon); cursor: pointer; font-size: 1rem;
+
+            letter-spacing: 3px; text-transform: uppercase; transition: 0.4s;
+
+        }
+
+        .btn-start:hover { background: var(--neon); color: #000; box-shadow: 0 0 40px var(--neon); }
+
+
+
+        /* КАРТА */
+
+        #map { width: 100%; height: 100vh; background: #0b1116; }
+
+
+
+        /* МЕНЮ */
+
+        .ui-panel {
+
+            position: absolute; top: 30px; left: 30px; z-index: 1000;
+
+            background: rgba(0,0,0,0.85); padding: 25px; border-radius: 15px;
+
+            border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px); width: 280px;
+
+        }
+
+        .nav-item {
+
+            display: block; width: 100%; background: none; border: none; color: white;
+
+            text-align: left; padding: 15px 10px; cursor: pointer; opacity: 0.5;
+
+            font-size: 0.85rem; transition: 0.3s; border-bottom: 1px solid rgba(255,255,255,0.05);
+
+        }
+
+        .nav-item:hover { opacity: 1; color: var(--neon); padding-left: 15px; }
+
+        .nav-item.active { opacity: 1; color: var(--neon); font-weight: 700; border-bottom: 2px solid var(--neon); }
+
+
+
+        /* ТАБЛО КООРДИНАТ */
+
+        .coords-box {
+
+            position: absolute; bottom: 30px; right: 30px; z-index: 1000;
+
+            background: rgba(0,0,0,0.8); border: 1px solid var(--neon);
+
+            padding: 12px 20px; border-radius: 5px; color: var(--neon);
+
+            font-family: monospace; font-size: 0.9rem; letter-spacing: 2px;
+
+            box-shadow: 0 0 20px rgba(0,242,255,0.2); pointer-events: none;
+
+        }
+
+        .coords-box span { color: white; opacity: 0.6; font-size: 0.7rem; margin-right: 5px; }
+
+
+
+        /* ЛЕГЕНДА */
+
+        .pop-legend {
+
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+
+            z-index: 1000; background: rgba(255,255,255,0.95); padding: 10px 30px;
+
+            border-radius: 50px; display: none; align-items: center; gap: 20px; color: #000;
+
+        }
+
+        .bar { width: 200px; height: 10px; background: linear-gradient(to right, #ffffb2, #f13a21, #621110); border-radius: 10px; }
+
+    </style>
+
+</head>
+
+<body>
+
+
+
+    <div id="intro">
+
+        <h1>TERRA<span>LENS</span></h1>
+
+        <div style="opacity:0.5; letter-spacing:5px; margin: 20px 0;">СИСТЕМА ГЛОБАЛЬНОГО ТРЕКИНГА</div>
+
+        <button class="btn-start" onclick="launch()">Запустить систему</button>
+
+    </div>
+
+
+
+    <div id="map"></div>
+
+
+
+    <div class="ui-panel">
+
+        <div style="color:var(--neon); font-size:0.6rem; letter-spacing:3px; margin-bottom:20px; font-weight:900;">МОДУЛИ</div>
+
+        <button class="nav-item active" onclick="setMode('pop', this)">📊 Плотность населения</button>
+
+        <button class="nav-item" onclick="setMode('sat', this)">🛰 Спутниковый обзор</button>
+
+        <button class="nav-item" onclick="setMode('relief', this)">🏔 Рельеф</button>
+
+        <button class="nav-item" onclick="setMode('rus', this)">🏙 Навигатор (РУС)</button>
+
+    </div>
+
+
+
+    <div class="coords-box" id="coords">
+
+        <span>LAT:</span><span id="lat">0.000</span> | <span>LNG:</span><span id="lng">0.000</span>
+
+    </div>
+
+
+
+    <div class="pop-legend" id="legend">
+
+        <span style="font-size: 0.7rem; font-weight: 900;">0</span>
+
+        <div class="bar"></div>
+
+        <span style="font-size: 0.7rem; font-weight: 900;">1000+</span>
+
+    </div>
+
+
+
+    <script>
+
+        let map;
+
+        let currentTile;
+
+        let geojsonLayer;
+
+
+
+        const config = {
+
+            pop: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+
+            sat: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+
+            relief: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
+
+            rus: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' // Русские названия
+
+        };
+
+
+
+        function init() {
+
+            map = L.map('map', { zoomControl: false, minZoom: 2 }).setView([20, 0], 2);
+
+            currentTile = L.tileLayer(config.pop).addTo(map);
+
+
+
+            // ТРЕКЕР МЫШКИ
+
+            map.on('mousemove', function(e) {
+
+                document.getElementById('lat').innerHTML = e.latlng.lat.toFixed(3);
+
+                document.getElementById('lng').innerHTML = e.latlng.lng.toFixed(3);
+
+            });
+
+
+
+            // Загрузка закраски стран
+
+            fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+
+                .then(res => res.json())
+
+                .then(data => {
+
+                    geojsonLayer = L.geoJson(data, {
+
+                        style: (f) => ({
+
+                            fillColor: f.properties.name.length > 8 ? '#bd0026' : '#feb24c',
+
+                            weight: 1, color: 'white', fillOpacity: 0.6
+
+                        })
+
+                    }).addTo(map);
+
+                });
+
+        }
+
+
+
+        function setMode(type, btn) {
+
+            map.removeLayer(currentTile);
+
+            currentTile = L.tileLayer(config[type]).addTo(map);
+
+
+
+            if (type === 'pop') {
+
+                if (!map.hasLayer(geojsonLayer)) geojsonLayer.addTo(map);
+
+                document.getElementById('legend').style.display = 'flex';
+
+            } else {
+
+                if (map.hasLayer(geojsonLayer)) map.removeLayer(geojsonLayer);
+
+                document.getElementById('legend').style.display = 'none';
+
+            }
+
+
+
+            if (type === 'rus') map.flyTo([55.75, 37.61], 10, { duration: 2 });
+
+
+
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+
+            btn.classList.add('active');
+
+        }
+
+
+
+        function launch() {
+
+            document.getElementById('intro').classList.add('hidden');
+
+            setTimeout(() => {
+
+                map.flyTo([55, 37], 4, { duration: 3 });
+
+                document.getElementById('legend').style.display = 'flex';
+
+            }, 500);
+
+        }
+
+
+
+        init();
+
+    </script>
+
+</body>
+
+</html>
+
